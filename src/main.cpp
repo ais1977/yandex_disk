@@ -9,7 +9,8 @@
 #include <StreamString.h>
 #include "YandexDisk.h"
 
-#define EXAMPLE 3
+#include "GyverNTP.h"
+GyverNTP ntp(3);
 
 const char WIFI_SSID[] PROGMEM = "ais1977";
 const char WIFI_PSWD[] PROGMEM = "www254201";
@@ -18,34 +19,47 @@ const char OAUTH[] PROGMEM = "y0_AgAAAAANZsCBAAqohAAAAADvN98Q2CqNIHshR0WKt6Jb3eF
 
 YandexDisk<SPIFFS> yd(FPSTR(OAUTH));
 
-static void halt(const __FlashStringHelper *msg) {
+static void halt(const __FlashStringHelper *msg)
+{
   Serial.println(msg);
   Serial.flush();
   ESP.deepSleep(0);
 }
 
-static void testAppend() {
+static void testAppend(String stroka)
+{
   StreamString ss;
 
-  if (yd.download(F("/data.cvs"), *(Stream*)&ss)) {
-    ss.println("777;");
-    if (yd.upload(F("/data.cvs"), *(Stream*)&ss, true)) {
+  if (yd.download(F("/data.csv"), *(Stream *)&ss))
+  {
+    ss.println(stroka);
+    if (yd.upload(F("/data.csv"), *(Stream *)&ss, true))
+    {
       Serial.println(F("File updated successfully"));
-    } else {
+    }
+    else
+    {
       Serial.println(F("Error uploading file!"));
     }
-  } else {
+  }
+  else
+  {
     Serial.println(F("Error downloading file!"));
+    yd.upload(F("/data.csv"), *(Stream *)&ss, true);
   }
 }
 
-
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   Serial.println();
 
-  if (! SPIFFS.begin()) {
-    if ((! SPIFFS.format()) || (! SPIFFS.begin()))
+  // ntp.setHost("pool.ntp.org");
+  ntp.begin();
+
+  if (!SPIFFS.begin())
+  {
+    if ((!SPIFFS.format()) || (!SPIFFS.begin()))
       halt(F("SPIFFS error!"));
   }
 
@@ -53,7 +67,8 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(FPSTR(WIFI_SSID), FPSTR(WIFI_PSWD));
   Serial.print(F("Connecting to WiFi"));
-  while (! WiFi.isConnected()) {
+  while (!WiFi.isConnected())
+  {
     Serial.print('.');
     delay(500);
   }
@@ -61,10 +76,29 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.println(')');
 
-  testAppend();
+  Serial.println("time");
+  while (!ntp.updateNow())
+  {
+    Serial.print('.');
+    delay(500);
+  }
+  Serial.println("");
 
-  Serial.flush();
-  ESP.deepSleep(0);
+  Serial.println(ntp.timeString());
+
+  // Serial.flush();
+  // ESP.deepSleep(0);
 }
 
-void loop() {}
+void loop()
+{
+  ntp.tick();
+  if (ntp.second() == 30)
+  {
+    Serial.println("tik");
+    testAppend(ntp.dateString() + ntp.timeString());
+  }
+
+  delay(100);
+  // Serial.println(ntp.second());
+}
